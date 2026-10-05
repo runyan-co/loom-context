@@ -11,7 +11,7 @@ skill fetches one recording, aligns its transcript with de-duplicated screenshot
 structured `SUMMARY.md` (observed problem, repro steps, expected vs actual, entities, open questions, likely code
 areas) that can be pasted into a ticket.
 
-- **Entry point:** `php "${CLAUDE_SKILL_DIR}/loom" <command>`, the `loom` file beside this one; shell helpers are in `scripts/`. If the paths in this file still begin with a `$`-placeholder instead of a real folder, replace it with this file's folder before running anything: it is not a shell variable.
+- **Entry point:** `php "${CLAUDE_SKILL_DIR}/loom" <command>`, the `loom` file beside this one; shell helpers are in `scripts/`. Claude Code provides `CLAUDE_SKILL_DIR`. In Codex, replace `${CLAUDE_SKILL_DIR}` in command examples with the absolute directory containing this `SKILL.md`, from the skill path Codex reports.
 - **Output:** `.loom/<videoId>/` under the current working directory. The folder git-ignores itself.
 - **Needs:** PHP 8.3+, Composer and the skill's Composer packages, `yt-dlp`, `ffmpeg`. Step 3 checks all of it and, with the user's permission, installs what is missing.
 - Nothing here posts anywhere; the human decides what to share.
@@ -25,7 +25,7 @@ areas) that can be pasted into a ticket.
 
 - No link, key, or permalink in the request: ask "Which Loom should I read? Paste the loom.com/share link, or the ticket or thread that has it."
 - A ticket or thread with several Loom links: list them with the surrounding sentence and ask which one (or "all, one at a time").
-- The build exits with code 4 and names a password: ask for the password with AskUserQuestion, then re-run with `--password`. Never store it.
+- The build exits with code 4 and names a password: ask the user for it (use AskUserQuestion in Claude Code), then re-run with `--password`. Never store it.
 
 ## Workflow
 
@@ -51,9 +51,9 @@ bash "${CLAUDE_SKILL_DIR}/scripts/setup.sh"
 It checks PHP, Composer, the skill's Composer packages, yt-dlp, ffmpeg, and access to loom.com. It installs nothing.
 No `FAIL` line: continue. Otherwise, for each `FAIL`:
 
-- **Ends in `[--install <id>]`:** the line shows the exact command that would run. Ask the user with AskUserQuestion
-  which of them you may run: multiSelect, one option per missing item, the command in each option's description. For
-  each one they approve, in the order the check lists, run `bash "${CLAUDE_SKILL_DIR}/scripts/setup.sh" --install <id>`.
+- **Ends in `[--install <id>]`:** the line shows the exact command that would run. Ask the user which missing
+  install actions they approve; in Claude Code, use AskUserQuestion with one option per item and its command in the
+  description. In the order the check lists, run `bash "${CLAUDE_SKILL_DIR}/scripts/setup.sh" --install <id>` for each approved item.
 - **Says `Fix by hand`:** it needs sudo or has no automatic install. Give the user the command or link to run themselves.
 - **`cannot reach www.loom.com`:** sandboxed and cloud sessions often block it. Tell the user to allowlist the hosts the
   line names, or to run this on their own machine.
