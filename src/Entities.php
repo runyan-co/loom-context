@@ -36,7 +36,7 @@ class Entities
         return [
             new EntityPattern('ticket', sprintf('~\b(?!(?:%s)-)[A-Z][A-Z0-9]{1,9}-\d{1,6}\b~u', self::NotTickets)),
             new EntityPattern('url', '~https?://[^\s)>\]]*[^\s)>\].,;:!?]~u'),
-            new EntityPattern('money', '~[$€£]\d[\d,]*(?:\.\d{2})?~u'),
+            new EntityPattern('money', '~[$€£]\d(?:\d|,\d{3})*(?:\.\d{2})?~u'),
             new EntityPattern(
                 'http_status',
                 '~\b([45]\d\d)\s+(?:error|errors|status|page|internal server error|not found)\b~iu',

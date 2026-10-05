@@ -43,13 +43,13 @@ it('falls back to the captions and strips their markup', function () {
     ]);
 });
 
-it('prefers the phrase transcript when the bundle has captions too', function () {
+it('uses captions for timeline timing when phrase transcripts and captions both exist', function () {
     $context = contextFor($this->workspace, [
         ...transcript(['ts' => 1.0, 'value' => 'from the transcript']),
         'captions.vtt' => "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nfrom the captions\n",
     ]);
 
-    expect(timelineOf($context))->toBe(['[00:01] "from the transcript"']);
+    expect(timelineOf($context))->toBe(['[00:01] "from the captions"']);
 });
 
 it('writes timestamps as mm:ss and lets hours roll into the minutes', function () {
@@ -110,7 +110,7 @@ it('renders every section the bundle has material for', function () {
     expect($context)->toBe(<<<MARKDOWN
         # Invoice 500 — Loom context
 
-        Source: {$shareUrl} · Recorded by Jordan on 20261001 · 00:25 · fetched via yt-dlp
+        Source: {$shareUrl} · Recorded by Jordan on 2026-10-01 · 00:25 · fetched via yt-dlp
 
         ## AI brief (Loom)
 

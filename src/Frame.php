@@ -6,6 +6,9 @@ namespace LoomContext;
 
 class Frame
 {
+    // Vision models scale a longer image down anyway, so a bigger frame only costs more.
+    public const MaxLongEdge = 1568;
+
     public function __construct(
         public float $seconds,
         public FrameReason $reason,
@@ -30,8 +33,15 @@ class Frame
         ];
     }
 
-    public function fileName(): string
+    /**
+     * f-<mmss>-<reason>.jpg; a second frame of the same reason in the same second is -2, and so on.
+     */
+    public function fileName(int $copy = 1): string
     {
-        return sprintf('f-%s-%s.jpg', str_replace(':', '', Transcript::clock($this->seconds)), $this->reason->value);
+        $clock = str_replace(':', '', Transcript::clock($this->seconds));
+
+        $suffix = $copy > 1 ? "-{$copy}" : '';
+
+        return "f-{$clock}-{$this->reason->value}{$suffix}.jpg";
     }
 }
