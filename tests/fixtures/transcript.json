@@ -1,0 +1,7 @@
+{"phrases":[
+ {"ts":0.4,"value":"So I'm on the invoices page for the acme workspace.","speakerName":"Jordan"},
+ {"ts":4.1,"value":"I click create invoice and you can see the 500 error right here.","speakerName":"Jordan"},
+ {"ts":9.0,"value":"The customer was charged $25.00 but only $19.50 came back.","speakerName":"Jordan"},
+ {"ts":15.2,"value":"This is PROJ-1234, the settings page is not linking back to the dashboard.","speakerName":"Jordan"},
+ {"ts":23.0,"value":"Anyway that's it, thanks.","speakerName":"Jordan"}
+]}

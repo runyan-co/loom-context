@@ -1,0 +1,21 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use LoomContext\Console\Application;
+
+// A fresh checkout has no vendor directory yet: say how to get one, in the same shape as any other failure.
+if (! is_file(__DIR__.'/vendor/autoload.php')) {
+    $message = sprintf("The skill's dependencies are not installed. Run `composer install --no-dev` in %s.", __DIR__);
+
+    echo json_encode(['error' => $message, 'detail' => '', 'exit' => 7], JSON_UNESCAPED_SLASHES), "\n";
+
+    fwrite(STDERR, "[loom-context] {$message}\n");
+
+    exit(7);
+}
+
+require __DIR__.'/vendor/autoload.php';
+
+exit((new Application(__DIR__))->run());
