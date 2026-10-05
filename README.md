@@ -1,4 +1,4 @@
-# loom-context
+# /loom-context
 
 Turn a Loom recording into agent-readable context: its transcript aligned with de-duplicated screenshots, a timeline, and detected entities. The Claude Code and Codex skill guides an agent from a Loom link to a structured `SUMMARY.md` with the observed problem, reproduction steps, expected and actual behavior, open questions, and likely code areas.
 
