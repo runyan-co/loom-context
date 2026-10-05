@@ -21,8 +21,8 @@ class ContextCommand extends JsonCommand
         $this
             ->addArgument('loom', InputArgument::REQUIRED, 'A Loom link or id, or a bundle directory already on disk')
             ->addOption('out', null, InputOption::VALUE_REQUIRED, 'Where bundles are written', '.loom')
-            ->addOption('interval', null, InputOption::VALUE_REQUIRED, 'Seconds between tick frames', '4')
-            ->addOption('scene', null, InputOption::VALUE_REQUIRED, 'Scene-cut sensitivity, 0 to 1', '0.25')
+            ->addOption('interval', null, InputOption::VALUE_REQUIRED, 'Deprecated and ignored', '4')
+            ->addOption('scene', null, InputOption::VALUE_REQUIRED, 'Deprecated and ignored', '0.25')
             ->addOption('max-frames', null, InputOption::VALUE_REQUIRED, 'Most frames to keep', '60')
             ->addOption(
                 'cookies-from-browser',

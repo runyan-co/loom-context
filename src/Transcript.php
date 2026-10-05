@@ -87,6 +87,21 @@ class Transcript
     }
 
     /**
+     * Prefers the captions, whose cue times are more exact, for timing frames and the timeline; falls back to
+     * load() only when the bundle has no captions.vtt.
+     *
+     * @return list<Phrase>
+     */
+    public static function captions(string $bundle): array
+    {
+        if (is_file("{$bundle}/captions.vtt")) {
+            return self::fromVtt((string) file_get_contents("{$bundle}/captions.vtt"));
+        }
+
+        return self::load($bundle);
+    }
+
+    /**
      * mm:ss; hours roll into the minutes because Looms are short.
      */
     public static function clock(float $seconds): string

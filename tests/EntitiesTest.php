@@ -41,6 +41,12 @@ it('does not take dashed technical terms for ticket keys', function () {
     expect(entitiesIn($context))->toBe([]);
 });
 
+it('does not include a sentence comma in a money entity', function () {
+    $context = contextFor($this->workspace, transcript(['ts' => 1.0, 'value' => 'The total is $30, then I saved.']));
+
+    expect(entitiesIn($context))->toContain('money $30 @00:01');
+});
+
 it('adds the project config\'s kinds, letting one replace the built-in of the same kind', function () {
     $this->workspace->write('.loom-context.json', ['entities' => [
         ['kind' => 'ticket', 'regex' => '\b(?:WEB|OPS)-\d{2,5}\b'],

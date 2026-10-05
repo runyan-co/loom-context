@@ -5,21 +5,23 @@ declare(strict_types=1);
 namespace LoomContext;
 
 /**
- * Why a frame was captured, in the order the frame budget is spent: a narrated moment outranks a scene cut,
- * which outranks the fixed tick.
+ * Why a frame was captured, in the order the frame budget is spent: the end of the recording, a frame pulled on
+ * request, a narrated moment, then a settled screen.
  */
 enum FrameReason: string
 {
+    case End = 'end';
+    case Pull = 'pull';
     case Say = 'say';
-    case Cut = 'cut';
-    case Tick = 'tick';
+    case State = 'state';
 
     public function priority(): int
     {
         return match ($this) {
-            self::Say => 0,
-            self::Cut => 1,
-            self::Tick => 2,
+            self::End => 0,
+            self::Pull => 1,
+            self::Say => 2,
+            self::State => 3,
         };
     }
 }

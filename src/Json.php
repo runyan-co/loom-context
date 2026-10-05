@@ -6,7 +6,7 @@ namespace LoomContext;
 
 class Json
 {
-    private const Readable = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
+    private const Readable = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION;
 
     /**
      * @param  array<mixed>  $data

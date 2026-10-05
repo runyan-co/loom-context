@@ -9,8 +9,8 @@ use InvalidArgumentException;
 /**
  * Decides which moments of a recording are worth a screenshot. A fixed interval alone either misses the
  * half-second a toast is on screen or yields dozens of identical frames of a static page, so candidates are
- * the union of a fixed tick, scene cuts, and narrated moments; near-identical neighbours are then dropped
- * and what remains is capped by priority.
+ * the screens that settle, narrated moments, and the end; near-identical neighbours are then dropped and what
+ * remains is capped by priority.
  */
 class FrameSelector
 {
@@ -19,6 +19,51 @@ class FrameSelector
         'click', 'clicked', 'clicking', 'error', 'see', 'here', 'notice', 'look', 'shows', 'showing',
         'broken', 'wrong', 'bug', 'should', 'instead', 'loading', 'stuck', 'spinning', 'blank', 'missing',
     ];
+
+    // A screen that holds for fewer samples than this is passing by, not a state.
+    private const SettledSamples = 2;
+
+    /**
+     * The first sample of each run of near-identical samples long enough to count as a settled screen.
+     *
+     * @param  list<array{ts: float, dhash: string, mean: int}>  $samples
+     * @return list<Frame>
+     */
+    public static function states(array $samples): array
+    {
+        $runs = [];
+
+        foreach ($samples as $sample) {
+            $frame = new Frame(
+                (float) $sample['ts'],
+                FrameReason::State,
+                dhash: $sample['dhash'],
+                mean: (int) $sample['mean'],
+            );
+
+            $current = array_key_last($runs);
+
+            if ($current !== null && self::isDuplicate($frame, $runs[$current][0])) {
+                $runs[$current][] = $frame;
+
+                continue;
+            }
+
+            $runs[] = [$frame];
+        }
+
+        $settled = array_filter($runs, fn (array $run) => count($run) >= self::SettledSamples);
+
+        return array_values(array_map(fn (array $run) => $run[0], $settled));
+    }
+
+    /**
+     * Just before the reported duration: a seek to the duration itself decodes nothing.
+     */
+    public static function lastFrameAt(float $duration): float
+    {
+        return max(0.0, $duration - 0.1);
+    }
 
     public static function isMoment(string $text): bool
     {
@@ -41,61 +86,37 @@ class FrameSelector
     }
 
     /**
-     * Ticks, cuts and moments in time order; neighbours closer than $minGap collapse to the higher-priority one.
+     * Settled screens, narrated moments and the end, in time order and held inside the recording. Close
+     * neighbours all stay, for dedupe() to judge by their images; only frames at the very same moment, which
+     * would be the same image, collapse to the highest priority.
      *
-     * @param  list<float>  $cuts
+     * @param  list<Frame>  $states
      * @param  list<float>  $moments
      * @return list<Frame>
      */
-    public static function candidates(
-        float $duration,
-        float $interval,
-        array $cuts,
-        array $moments,
-        float $minGap = 1.5,
-    ): array {
-        // The last frame sits just before the reported duration; a seek to the duration itself decodes nothing.
-        $end = max(0.0, $duration - 0.1);
+    public static function candidates(float $duration, array $states, array $moments): array
+    {
+        $end = self::lastFrameAt($duration);
 
-        $raw = [];
+        $frames = [
+            ...array_map(fn (Frame $state) => new Frame(min($state->seconds, $end), FrameReason::State), $states),
+            ...array_map(fn (float $moment) => new Frame(min($moment, $end), FrameReason::Say), $moments),
+            new Frame($end, FrameReason::End),
+        ];
 
-        for ($tick = 0.0; $tick <= $duration; $tick += $interval) {
-            $raw[] = new Frame(min(round($tick, 3), $end), FrameReason::Tick);
-        }
+        usort($frames, self::chronologically(...));
 
-        foreach ($cuts as $cut) {
-            // 0.2 s after a cut: past any fade
-            $raw[] = new Frame(min($cut + 0.2, $end), FrameReason::Cut);
-        }
+        $distinct = [];
 
-        foreach ($moments as $moment) {
-            $raw[] = new Frame(min($moment, $end), FrameReason::Say);
-        }
+        foreach ($frames as $frame) {
+            $previous = end($distinct);
 
-        $raw = array_filter($raw, fn (Frame $frame) => $frame->seconds >= 0);
-
-        usort($raw, fn (Frame $a, Frame $b) => [$a->seconds, $a->reason->priority()] <=> [
-            $b->seconds,
-            $b->reason->priority(),
-        ]);
-
-        $merged = [];
-
-        foreach ($raw as $candidate) {
-            $previous = end($merged);
-
-            if ($previous === false || $candidate->seconds - $previous->seconds >= $minGap) {
-                $merged[] = $candidate;
-
-                continue;
-            }
-
-            if ($candidate->reason->priority() < $previous->reason->priority()) {
-                $merged[array_key_last($merged)] = $candidate;
+            if ($previous === false || $frame->seconds !== $previous->seconds) {
+                $distinct[] = $frame;
             }
         }
 
-        return $merged;
+        return $distinct;
     }
 
     /**
@@ -141,53 +162,120 @@ class FrameSelector
     }
 
     /**
-     * Drops a frame that repeats the last kept one, unless it is a narrated moment or the gap has grown past
-     * $keepGapFactor ticks (a long static stretch still gets an occasional frame).
+     * Drops a frame that repeats the last kept one. A narrated moment takes the place of the repeat it follows,
+     * unless that is the end frame, which always stays. Once $keepGap seconds have passed a repeat is kept
+     * anyway, so a long static stretch still gets an occasional frame.
      *
-     * @param  list<Frame>  $frames
+     * @param  list<Frame>  $frames  in time order
      * @return list<Frame>
      */
-    public static function dedupe(array $frames, float $interval, float $keepGapFactor = 3.0): array
+    public static function dedupe(array $frames, float $keepGap = 12.0): array
     {
         $kept = [];
 
         foreach ($frames as $frame) {
             $last = end($kept);
 
-            $repeatsLast = $last !== false
-                && $frame->reason !== FrameReason::Say
-                && $frame->seconds - $last->seconds < $interval * $keepGapFactor
-                && self::isDuplicate($frame, $last);
-
-            if (! $repeatsLast) {
+            if ($last === false || $frame->reason === FrameReason::End || ! self::repeats($frame, $last, $keepGap)) {
                 $kept[] = $frame;
+
+                continue;
+            }
+
+            if ($frame->reason === FrameReason::Say && $last->reason !== FrameReason::End) {
+                $kept[array_key_last($kept)] = $frame;
             }
         }
 
         return $kept;
     }
 
+    private static function repeats(Frame $frame, Frame $last, float $keepGap): bool
+    {
+        return $frame->seconds - $last->seconds < $keepGap && self::isDuplicate($frame, $last);
+    }
+
     /**
-     * Trims to $maxFrames by dropping ticks first, then cuts, then narrated moments, keeping time order.
+     * Trims to $maxFrames, in time order. The end frame always stays; the rest of the budget goes by priority
+     * (see FrameReason), and the first priority that does not fit is sampled evenly across the recording.
      *
      * @param  list<Frame>  $frames
      * @return list<Frame>
      */
     public static function cap(array $frames, int $maxFrames): array
     {
+        if ($maxFrames <= 0) {
+            return [];
+        }
+
         if (count($frames) <= $maxFrames) {
+            usort($frames, self::chronologically(...));
+
             return $frames;
         }
 
-        $ranked = $frames;
+        $selected = array_values(array_filter($frames, fn (Frame $frame) => $frame->reason === FrameReason::End));
+        $remaining = max(0, $maxFrames - count($selected));
+        $groups = [];
 
-        usort($ranked, fn (Frame $a, Frame $b) => [$a->reason->priority(), $a->seconds] <=> [
-            $b->reason->priority(),
-            $b->seconds,
-        ]);
+        foreach ($frames as $frame) {
+            if ($frame->reason !== FrameReason::End) {
+                $groups[$frame->reason->priority()][] = $frame;
+            }
+        }
 
-        $keep = array_map(spl_object_id(...), array_slice($ranked, 0, $maxFrames));
+        ksort($groups);
 
-        return array_values(array_filter($frames, fn (Frame $frame) => in_array(spl_object_id($frame), $keep, true)));
+        foreach ($groups as $group) {
+            usort($group, fn (Frame $a, Frame $b) => $a->seconds <=> $b->seconds);
+
+            if (count($group) <= $remaining) {
+                array_push($selected, ...$group);
+                $remaining -= count($group);
+
+                continue;
+            }
+
+            array_push($selected, ...self::sampleEvenly($group, $remaining));
+
+            break;
+        }
+
+        usort($selected, self::chronologically(...));
+
+        return $selected;
+    }
+
+    /**
+     * Time order; of two frames at the same moment, the higher priority comes first.
+     */
+    private static function chronologically(Frame $a, Frame $b): int
+    {
+        return [$a->seconds, $a->reason->priority()] <=> [$b->seconds, $b->reason->priority()];
+    }
+
+    /**
+     * @param  list<Frame>  $frames
+     * @return list<Frame>
+     */
+    private static function sampleEvenly(array $frames, int $slots): array
+    {
+        if ($slots <= 0 || $frames === []) {
+            return [];
+        }
+
+        if ($slots === 1) {
+            return [$frames[(int) round((count($frames) - 1) / 2)]];
+        }
+
+        $last = count($frames) - 1;
+        $selected = [];
+
+        for ($slot = 0; $slot < $slots; $slot++) {
+            $index = (int) round($slot * $last / ($slots - 1));
+            $selected[] = $frames[$index];
+        }
+
+        return $selected;
     }
 }

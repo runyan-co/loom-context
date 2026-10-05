@@ -19,7 +19,7 @@ areas) that can be pasted into a ticket.
 ## Required inputs
 
 - A Loom link (`https://www.loom.com/share/<32 hex>`, `/embed/`, or a bare id), **or** a ticket key, issue, or chat permalink that contains one.
-- Optional: the video password; a different frame cadence (`--interval`, default 4 s); `--max-frames` (default 60).
+- Optional: the video password; `--max-frames` (default 60). `--interval` and `--scene` remain accepted for compatibility; automatic frames sample stable screens at 2 fps.
 
 ## Missing information handling
 
@@ -65,13 +65,13 @@ for private Looms, and the browser line lists what was detected; nothing is read
 ### Step 4: Build the bundle
 
 ```bash
-php "${CLAUDE_SKILL_DIR}/loom" context "<loom url>" [--interval 4] [--max-frames 60] [--password <pw>] [--cookies-from-browser none|<browser>]
+php "${CLAUDE_SKILL_DIR}/loom" context "<loom url>" [--max-frames 60] [--password <pw>] [--cookies-from-browser none|<browser>]
 ```
 
 The last stdout line is a JSON manifest; its `notes` say what is missing. On failure it is `{"error", "detail", "exit"}`
 and the error names the fix.
 Exit codes: 2 not a Loom link or a mistyped option · 3 network · 4 auth (private, deleted, password) · 5 yt-dlp missing or outdated · 6 ffmpeg missing · 7 the skill's Composer packages are not installed.
-Partial bundles are kept: a transcript without frames, or frames without a transcript, is still worth summarising.
+Partial bundles are kept: a transcript without frames, or frames without a transcript, is still worth summarising. Entities come from narration text only. `captions.vtt`, when present, supplies the timing for narrated frames and timeline rows; a video with neither transcript nor audio is still useful as a frames-only bundle.
 
 **Private Looms.** A link that does not open anonymously is retried with each installed browser's Loom cookies. On
 macOS that can raise one Keychain prompt per browser, so warn the user first, or add `--cookies-from-browser chrome`
@@ -89,7 +89,8 @@ print `.env`; `setup.sh` says whether a cookie is configured. Re-run with `--ref
 Read `.loom/<id>/CONTEXT.md` in full. It has Loom's brief and chapters when they exist, the entities spotted (ticket
 keys, URLs, emails, money, HTTP status words, plus any project-specific ones), and a timeline where each transcript
 phrase points at the nearest frame. A section with nothing to show is left out. Frame files are named
-`f-<mmss>-<reason>.jpg`, so `f-0100-tick.jpg` is at one minute.
+`f-<mmss>-<reason>.jpg`, so `f-0100-state.jpg` is at one minute (a second frame of the same reason in that
+second is `-2`).
 
 The transcript is machine-made: it mishears words, runs several speakers together, and sometimes adds filler nobody
 said ("Thanks for watching!"). Check a quote against the frame before leaning on it.
@@ -97,9 +98,20 @@ said ("Thanks for watching!"). Check a quote against the frame before leaning on
 ### Step 6: Look at the frames, selectively
 
 Frames cost about 1.5k tokens each. View, in order: every `say` frame (the screen right after "click / see / error"),
-every `cut` frame (navigation, modals), the last frame (the end state, often after the narration stops), then
-`frames/contact-sheet.jpg` for the whole arc (thumbnails: good for sequence, too small to read text). Open other `tick`
-frames only when the timeline leaves a gap you cannot explain. Quote timestamps (`[mm:ss]`) whenever you cite what you saw.
+every `state` frame (a screen that settled: navigation, modals, results), the `end` frame (often after the narration
+stops), then `frames/contact-sheet.jpg` for the whole arc (timestamped thumbnails: good for sequence, too small to
+read text).
+
+When the frames leave a gap, pull a closer look by time or by what was said; add `--region x,y,width,height` to crop
+and `--zoom 2` to enlarge:
+
+```bash
+php "${CLAUDE_SKILL_DIR}/loom" frame .loom/<id> --window 00:10-00:14
+php "${CLAUDE_SKILL_DIR}/loom" frame .loom/<id> --cue "save confirmation"
+```
+
+Each pull's images, timestamps, dimensions, and contact sheet are recorded in `frames.json` and `CONTEXT.md`. Quote
+exact timestamps and pull paths when citing what you saw.
 
 ### Step 7: Write `.loom/<id>/SUMMARY.md`
 

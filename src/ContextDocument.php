@@ -16,6 +16,7 @@ class ContextDocument
      * @param  list<Entity>  $entities
      * @param  list<array{ts: float, text: ?string, frame: ?string}>  $timeline
      * @param  list<string>  $notes
+     * @param  list<array<string, mixed>>  $pulls  as FramePuller records them in frames.json
      */
     public static function render(
         array $meta,
@@ -25,6 +26,7 @@ class ContextDocument
         ?string $brief,
         array $timeline,
         array $notes,
+        array $pulls = [],
     ): string {
         $lines = [
             sprintf('# %s — Loom context', $meta['title'] ?? $meta['video_id'] ?? 'Untitled'),
@@ -33,7 +35,7 @@ class ContextDocument
                 'Source: %s · Recorded by %s on %s · %s · fetched via %s',
                 $meta['webpage_url'] ?? 'unknown',
                 $meta['uploader'] ?? 'unknown',
-                $meta['upload_date'] ?? '?',
+                self::uploadDate($meta['upload_date'] ?? null),
                 Transcript::clock((float) ($meta['duration_s'] ?? 0)),
                 $meta['source'] ?? 'unknown',
             ),
@@ -77,6 +79,18 @@ class ContextDocument
             array_push($lines, '', 'Overview: frames/contact-sheet.jpg', '');
         }
 
+        if ($pulls !== []) {
+            array_push($lines, '## On-demand frames', '');
+
+            foreach ($pulls as $pull) {
+                $lines[] = self::pullLine($pull);
+
+                array_push($lines, ...array_map(self::pulledFrameLine(...), $pull['frames'] ?? []));
+            }
+
+            $lines[] = '';
+        }
+
         return implode("\n", $lines);
     }
 
@@ -116,5 +130,51 @@ class ContextDocument
     private static function frameLine(array $frame): string
     {
         return sprintf('| %s | %s | %s |', Transcript::clock((float) $frame['ts']), $frame['path'], $frame['reason']);
+    }
+
+    /**
+     * @param  array<string, mixed>  $pull
+     */
+    private static function pullLine(array $pull): string
+    {
+        $cue = isset($pull['cue']) ? " — cue: {$pull['cue']}" : '';
+
+        return sprintf('- Sheet: %s%s', $pull['sheet'] ?? '?', $cue);
+    }
+
+    /**
+     * @param  array{ts: float, path: string, width: int, height: int, region: ?list<int>, zoom: int}  $frame
+     */
+    private static function pulledFrameLine(array $frame): string
+    {
+        $region = $frame['region'] === null ? 'full frame' : implode(',', $frame['region']);
+
+        return sprintf(
+            '  - [%s] %s (%d×%d, region %s, zoom %dx)',
+            Transcript::clock((float) $frame['ts']),
+            $frame['path'],
+            $frame['width'],
+            $frame['height'],
+            $region,
+            $frame['zoom'],
+        );
+    }
+
+    /**
+     * yt-dlp gives the upload date as YYYYMMDD; any other value is shown as it came.
+     */
+    private static function uploadDate(mixed $date): string
+    {
+        if (! is_string($date) || $date === '') {
+            return '?';
+        }
+
+        if (preg_match('/^(\d{4})(\d{2})(\d{2})$/', $date, $parts) !== 1) {
+            return $date;
+        }
+
+        [, $year, $month, $day] = $parts;
+
+        return checkdate((int) $month, (int) $day, (int) $year) ? "{$year}-{$month}-{$day}" : $date;
     }
 }

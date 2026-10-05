@@ -20,9 +20,14 @@ it('shows each command with the line that runs it and a real example', function 
                   Fetch a Loom into a bundle directory: metadata, chapters, transcript, MP4
                   e.g. php loom fetch https://www.loom.com/share/0123456789abcdef0123456789abcdef --skip-video
 
+              php loom frame <bundle> [options]
+                  Pull and inspect selected frames from a Loom bundle
+                  e.g. php loom frame .loom/0123456789abcdef0123456789abcdef --window 00:10-00:14
+                  e.g. php loom frame .loom/0123456789abcdef0123456789abcdef --cue "save confirmation" --zoom 2
+
               php loom frames <bundle> [options]
                   Extract a small, de-duplicated set of screenshots from a bundle, aligned to its narration
-                  e.g. php loom frames .loom/0123456789abcdef0123456789abcdef --interval 2
+                  e.g. php loom frames .loom/0123456789abcdef0123456789abcdef --max-frames 30
 
             Add --help to a command for its options, e.g. php loom context --help
 

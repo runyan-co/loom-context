@@ -6,6 +6,18 @@ namespace LoomContext;
 
 class FrameExtractor
 {
+    private const SampleRateHz = 2;
+
+    /**
+     * Whether automatic frames have been extracted; frames.json can also exist holding only pulled ones.
+     */
+    public static function hasRun(string $bundle): bool
+    {
+        $summary = "{$bundle}/frames.json";
+
+        return is_file($summary) && array_key_exists('kept', Json::read($summary));
+    }
+
     /**
      * Writes frames/*.jpg, frames/contact-sheet.jpg and frames.json for the bundle's video.mp4.
      *
@@ -13,10 +25,8 @@ class FrameExtractor
      */
     public static function run(
         string $bundle,
-        float $interval = 4.0,
-        float $scene = 0.25,
         int $maxFrames = 60,
-        int $longEdge = 1568,
+        int $longEdge = Frame::MaxLongEdge,
         bool $dedupe = true,
     ): array {
         Ffmpeg::ensureInstalled();
@@ -33,23 +43,20 @@ class FrameExtractor
 
         $duration = Ffmpeg::duration($video);
 
-        $cuts = Ffmpeg::sceneCuts($video, $scene);
+        $states = FrameSelector::states(Ffmpeg::sampledSignatures($video, self::SampleRateHz));
 
-        $moments = FrameSelector::moments(Transcript::load($bundle));
+        $moments = FrameSelector::moments(Transcript::captions($bundle));
 
-        $candidates = FrameSelector::candidates($duration, $interval, $cuts, $moments);
+        $candidates = FrameSelector::candidates($duration, $states, $moments);
 
-        // A long recording gets a coarser tick rather than hundreds of extractions.
-        while (count($candidates) > 4 * $maxFrames) {
-            $interval *= 2;
-
-            Log::line("many candidates; raising interval to {$interval}s");
-
-            $candidates = FrameSelector::candidates($duration, $interval, $cuts, $moments);
-        }
+        $copies = [];
 
         foreach ($candidates as $frame) {
-            $frame->path = "frames/{$frame->fileName()}";
+            $name = $frame->fileName();
+
+            $copies[$name] = ($copies[$name] ?? 0) + 1;
+
+            $frame->path = "frames/{$frame->fileName($copies[$name])}";
 
             Ffmpeg::extract($video, $frame->seconds, "{$bundle}/{$frame->path}", $longEdge);
 
@@ -59,7 +66,7 @@ class FrameExtractor
         }
 
         $kept = FrameSelector::cap(
-            $dedupe ? FrameSelector::dedupe($candidates, $interval) : $candidates,
+            $dedupe ? FrameSelector::dedupe($candidates) : $candidates,
             $maxFrames,
         );
 
@@ -74,18 +81,27 @@ class FrameExtractor
         Ffmpeg::contactSheet(
             array_map(fn (string $path) => "{$bundle}/{$path}", $keptPaths),
             "{$bundle}/frames/contact-sheet.jpg",
+            array_map(fn (Frame $frame) => $frame->seconds, $kept),
+        );
+
+        $previous = is_file("{$bundle}/frames.json") ? Json::read("{$bundle}/frames.json") : [];
+
+        // Frames pulled on request outlive a new extraction, and do not count against its cap.
+        $pulledFrames = array_filter(
+            $previous['frames'] ?? [],
+            fn (array $frame) => ($frame['reason'] ?? null) === FrameReason::Pull->value,
         );
 
         $summary = [
             'duration_s' => $duration,
-            'interval_s' => $interval,
-            'scene_threshold' => $scene,
+            'sample_rate_hz' => self::SampleRateHz,
             'candidates' => count($candidates),
             'kept' => count($kept),
-            'cuts' => count($cuts),
+            'states' => count($states),
             'moments' => count($moments),
-            'frames' => array_map(fn (Frame $frame) => $frame->toArray(), $kept),
+            'frames' => [...array_map(fn (Frame $frame) => $frame->toArray(), $kept), ...$pulledFrames],
             'contact_sheet' => 'frames/contact-sheet.jpg',
+            'pulls' => $previous['pulls'] ?? [],
         ];
 
         Json::write("{$bundle}/frames.json", $summary);

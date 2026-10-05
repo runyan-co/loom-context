@@ -50,7 +50,7 @@ After installing the skill's Composer dependencies, run a context build with:
 php loom context "https://www.loom.com/share/<video-id>"
 ```
 
-The command accepts a share URL, embed URL, or bare video ID. Use `php loom help` to see the available commands. Context options include `--interval` (frame cadence in seconds), `--max-frames`, `--password`, and `--cookies-from-browser`. A public recording needs no extra configuration.
+The command accepts a share URL, embed URL, or bare video ID. Use `php loom help` to see the available commands. Context options include `--max-frames`, `--password`, and `--cookies-from-browser`; `php loom frame` pulls closer looks at chosen moments. A public recording needs no extra configuration.
 
 Private recordings may require Loom browser cookies or a `LOOM_COOKIE` session cookie. Optional settings live in `.env` beside `loom`; start from `.env.example`. Never share `.env` or the generated `.loom/` bundle, which can contain real user data. See [SKILL.md](SKILL.md) for the full workflow, privacy guardrails, and output format.
 

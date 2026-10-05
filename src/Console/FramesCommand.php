@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace LoomContext\Console;
 
+use LoomContext\Frame;
 use LoomContext\FrameExtractor;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
@@ -20,12 +21,18 @@ class FramesCommand extends JsonCommand
     {
         $this
             ->addArgument('bundle', InputArgument::REQUIRED, 'A bundle directory holding video.mp4')
-            ->addOption('interval', null, InputOption::VALUE_REQUIRED, 'Seconds between tick frames', '4')
-            ->addOption('scene', null, InputOption::VALUE_REQUIRED, 'Scene-cut sensitivity, 0 to 1', '0.25')
+            ->addOption('interval', null, InputOption::VALUE_REQUIRED, 'Deprecated and ignored', '4')
+            ->addOption('scene', null, InputOption::VALUE_REQUIRED, 'Deprecated and ignored', '0.25')
             ->addOption('max-frames', null, InputOption::VALUE_REQUIRED, 'Most frames to keep', '60')
-            ->addOption('long-edge', null, InputOption::VALUE_REQUIRED, 'Longest side of a frame, in pixels', '1568')
+            ->addOption(
+                'long-edge',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Longest side of a frame, in pixels',
+                (string) Frame::MaxLongEdge,
+            )
             ->addOption('no-dedupe', null, InputOption::VALUE_NONE, 'Keep frames that repeat the one before')
-            ->addUsage(sprintf('%s --interval 2', self::ExampleBundle))
+            ->addUsage(sprintf('%s --max-frames 30', self::ExampleBundle))
             ->setHelp(
                 'Prints one JSON object on stdout; diagnostics go to stderr. '
                 .'Needs ffmpeg and ffprobe on PATH (exit 6 without).',
@@ -36,8 +43,6 @@ class FramesCommand extends JsonCommand
     {
         $summary = FrameExtractor::run(
             $input->getArgument('bundle'),
-            (float) $input->getOption('interval'),
-            (float) $input->getOption('scene'),
             (int) $input->getOption('max-frames'),
             (int) $input->getOption('long-edge'),
             ! $input->getOption('no-dedupe'),

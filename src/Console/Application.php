@@ -29,7 +29,7 @@ class Application extends BaseApplication
     {
         parent::__construct('loom-context');
 
-        $this->addCommands([new ContextCommand, new FetchCommand, new FramesCommand]);
+        $this->addCommands([new ContextCommand, new FetchCommand, new FramesCommand, new FrameCommand]);
 
         // Failures are reported below as JSON rather than rendered by Symfony, and the entry file does the exiting.
         $this->setCatchExceptions(false);
